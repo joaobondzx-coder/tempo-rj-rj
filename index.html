@@ -3,133 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clima Rio - 3D Experience</title>
+    <title>Clima Rio Realista 3D</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: linear-gradient(to top, #87CEEB, #E0F6FF); }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #87CEEB; transition: background 2s ease; }
         
-        /* Interface do Usuário (UI) sobreposta ao 3D */
+        /* Interface do Usuário (UI) Glassmorphism */
         #ui-container {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            padding: 2rem;
-            border-radius: 20px;
-            color: #333;
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            max-width: 300px;
-            z-index: 10;
+            top: 20px; left: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            padding: 2rem; border-radius: 20px;
+            color: #fff;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 300px; z-index: 10;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
         }
 
-        h1 { margin: 0 0 10px 0; font-size: 1.5rem; color: #004680; }
-        .temp { font-size: 4rem; font-weight: bold; margin: 0; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
-        .desc { font-size: 1.2rem; text-transform: capitalize; margin-bottom: 20px; font-weight: 500; }
-        .details { font-size: 0.9rem; color: #444; }
+        h1 { margin: 0 0 10px 0; font-size: 1.5rem; letter-spacing: 1px; }
+        .temp { font-size: 4.5rem; font-weight: 700; margin: -10px 0 0 0; }
+        .desc { font-size: 1.3rem; text-transform: capitalize; margin-bottom: 20px; font-weight: 500; }
+        .details p { margin: 5px 0; font-size: 0.95rem; opacity: 0.9; }
         
         /* Loading overlay */
-        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; color: #004680; }
+        #loading {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #87CEEB; color: white;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20; transition: opacity 1s ease;
+        }
+        .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #fff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <div>Carregando Cristo Realista e Clima...</div>
+    </div>
 
     <div id="ui-container">
         <h1>Rio de Janeiro</h1>
         <div id="weather-data">
-            <p class="temp">28°C</p>
-            <p class="desc">Ensolarado</p>
+            <p class="temp">--°C</p>
+            <p class="desc">Aguardando dados...</p>
             <div class="details">
-                <p>Umidade: 65%</p>
-                <p>Vento: 12 km/h</p>
+                <p>Umidade: --%</p>
+                <p>Vento: -- km/h</p>
             </div>
         </div>
     </div>
-    
-    <div id="loading">Carregando Cristo 3D...</div>
 
     <script>
-        // --- 1. CONFIGURAÇÃO DA CENA 3D ---
-        const scene = new THREE.Scene();
-        
-        // Câmera
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 8); // Posição inicial
-        
-        // Renderizador
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
+        // ==========================================
+        // COLOQUE SUA CHAVE DE API AQUI:
+        const API_KEY = "SUA_CHAVE_API_AQUI"; 
+        // ==========================================
 
-        // Luzes
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-        
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(5, 10, 7);
-        scene.add(dirLight);
+        let scene, camera, renderer, cristoModel;
+        let sunLight, sunMesh, ambientLight;
+        let cloudsGroup = new THREE.Group();
 
-        // --- 2. CONSTRUÇÃO DO CRISTO (Procedural) ---
-        // Como não podemos carregar um arquivo externo .obj facilmente aqui,
-        // vamos "esculpir" um Cristo estilizado usando formas básicas.
-        
-        const cristoGroup = new THREE.Group();
-        const stoneMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xe0e0e0, 
-            roughness: 0.8 
-        });
+        // URL pública do modelo do Cristo (formato GLB/GLTF)
+        // Usando um modelo low-poly hospedado no GitHub para exemplo
+        const MODEL_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Corset/glTF-Binary/Corset.glb'; 
+        // OBS: É difícil achar um modelo bom e gratuito do Cristo hospedado publicamente com CORS liberado. 
+        // Para este exemplo funcionar SEM você baixar nada, vou usar um modelo genérico (um espartilho) que sei que carrega.
+        // **SE VOCÊ TIVER O ARQUIVO DO CRISTO.glb**, coloque na mesma pasta do HTML e mude a linha acima para: const MODEL_URL = './cristo.glb';
 
-        // Base (Pedestal)
-        const baseGeo = new THREE.CylinderGeometry(0.8, 1, 1, 8);
-        const base = new THREE.Mesh(baseGeo, stoneMaterial);
-        base.position.y = -2;
-        cristoGroup.add(base);
+        // URL de textura de nuvem transparente
+        const CLOUD_TEXTURE_URL = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/cloud10.png';
 
-        // Corpo (Túnica)
-        const bodyGeo = new THREE.CylinderGeometry(0.5, 0.7, 3.5, 8);
-        const body = new THREE.Mesh(bodyGeo, stoneMaterial);
-        body.position.y = 0.25;
-        cristoGroup.add(body);
+        initScene();
+        initLights();
+        initSunAndClouds();
+        loadCristoModel(); // Tenta carregar o modelo
+        fetchWeather(); // Busca o clima
+        animate();
 
-        // Braços Abertos
-        const armGeo = new THREE.BoxGeometry(3.8, 0.4, 0.5);
-        const arms = new THREE.Mesh(armGeo, stoneMaterial);
-        arms.position.y = 1.2;
-        cristoGroup.add(arms);
+        function initScene() {
+            scene = new THREE.Scene();
+            // Fog para dar profundidade atmosférica
+            scene.fog = new THREE.FogExp2(0x87CEEB, 0.02);
 
-        // Cabeça
-        const headGeo = new THREE.SphereGeometry(0.35, 16, 16);
-        const head = new THREE.Mesh(headGeo, stoneMaterial);
-        head.position.y = 2.1;
-        cristoGroup.add(head);
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 5, 20); // Posição da câmera para ver o modelo
 
-        scene.add(cristoGroup);
-        document.getElementById('loading').style.display = 'none';
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputEncoding = THREE.sRGBEncoding; // Cores mais realistas
+            renderer.shadowMap.enabled = true; // Habilitar sombras
+            document.body.appendChild(renderer.domElement);
 
-        // --- 3. INTEGRAÇÃO COM API DE TEMPO ---
-        // Nota: Para usar dados reais, você precisa de uma chave da OpenWeatherMap.
-        // Abaixo simulei uma chamada para funcionar sem chave API inicialmente.
-        
+            // Chão simples para receber sombra
+            const planeGeometry = new THREE.PlaneGeometry(200, 200);
+            const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x2a4d1a }); // Cor de grama escura
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = -5;
+            plane.receiveShadow = true;
+            scene.add(plane);
+        }
+
+        function initLights() {
+            // Luz Ambiente Base
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            // Luz do Sol (Direcional com sombras)
+            sunLight = new THREE.DirectionalLight(0xffd700, 1.5);
+            sunLight.position.set(50, 100, 50);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048; // Qualidade da sombra
+            sunLight.shadow.mapSize.height = 2048;
+            scene.add(sunLight);
+        }
+
+        function initSunAndClouds() {
+            // Representação visual do Sol (uma esfera brilhante)
+            const sunGeo = new THREE.SphereGeometry(5, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd44, fog: false });
+            sunMesh = new THREE.Mesh(sunGeo, sunMat);
+            sunMesh.position.copy(sunLight.position);
+            scene.add(sunMesh);
+
+            // Criação das Nuvens usando Sprites (imagens planas que sempre olham pra câmera)
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(CLOUD_TEXTURE_URL, function(texture) {
+                const cloudMaterial = new THREE.SpriteMaterial({ 
+                    map: texture, 
+                    transparent: true, 
+                    opacity: 0.7,
+                    color: 0xffffff
+                });
+
+                // Criar 30 nuvens aleatórias
+                for (let i = 0; i < 30; i++) {
+                    const cloud = new THREE.Sprite(cloudMaterial);
+                    cloud.scale.set(20, 12, 1); // Tamanho da nuvem
+                    // Posições aleatórias ao redor do centro
+                    cloud.position.set(
+                        (Math.random() - 0.5) * 150, 
+                        Math.random() * 30 + 10, // Altura entre 10 e 40
+                        (Math.random() - 0.5) * 100 - 20
+                    );
+                    cloud.rotation.z = Math.random() * 0.5;
+                    cloudsGroup.add(cloud);
+                }
+                scene.add(cloudsGroup);
+            });
+        }
+
+        function loadCristoModel() {
+            const loader = new THREE.GLTFLoader();
+            
+            loader.load(MODEL_URL, (gltf) => {
+                cristoModel = gltf.scene;
+                
+                // Ajustes no modelo carregado
+                cristoModel.scale.set(30, 30, 30); // Aumenta o tamanho (depende do modelo)
+                cristoModel.position.set(0, -5, 0);
+                
+                // Habilitar sombras no modelo
+                cristoModel.traverse((node) => {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                         // Se o modelo for muito escuro, podemos forçar um material padrão:
+                         // node.material = new THREE.MeshStandardMaterial({color: 0xe0e0e0, roughness: 0.7});
+                    }
+                });
+                
+                scene.add(cristoModel);
+                // Esconde a tela de loading apenas se o clima também já tiver carregado
+                checkLoadingDone();
+
+            }, undefined, (error) => {
+                console.error('Erro ao carregar o modelo 3D:', error);
+                document.getElementById('loading').innerHTML = "Erro ao carregar modelo 3D. Veja o console.";
+            });
+        }
+
         async function fetchWeather() {
-            // Se você tiver uma API KEY, descomente as linhas abaixo e coloque sua chave:
-            /*
-            const apiKey = 'SUA_CHAVE_AQUI';
-            const url = `https://api.openweathermap.org/data/2.5/weather?q=Rio+de+Janeiro&appid=${apiKey}&units=metric&lang=pt_br`;
+            if(API_KEY === "SUA_CHAVE_API_AQUI") {
+                alert("Você precisa colocar sua chave API da OpenWeatherMap no código para funcionar com dados reais!");
+                // Dados de teste se não tiver chave
+                updateUI(28, "céu limpo (demo)", 60, 10);
+                updateSceneVisuals("Clear");
+                checkLoadingDone();
+                return;
+            }
+
+            const url = `https://api.openweathermap.org/data/2.5/weather?q=Rio+de+Janeiro&appid=${API_KEY}&units=metric&lang=pt_br`;
             
             try {
                 const response = await fetch(url);
                 const data = await response.json();
-                updateUI(data.main.temp, data.weather[0].description, data.main.humidity, data.wind.speed);
-                updateBackground(data.weather[0].main); // Mudar cor do céu baseado no tempo
-            } catch (error) {
-                console.error("Erro ao buscar clima", error);
-            }
-            */
+                
+                if(data.cod !== 200) throw new Error(data.message);
 
-            // Simulação (Mock)
-            console.log("Usando dados simulados (Adicione sua API Key no código para dados reais)");
+                updateUI(data.main.temp, data.weather[0].description, data.main.humidity, data.wind.speed);
+                // Passa a condição principal do tempo (Rain, Clouds, Clear)
+                updateSceneVisuals(data.weather[0].main);
+                checkLoadingDone();
+
+            } catch (error) {
+                console.error("Erro ao buscar clima:", error);
+                document.querySelector('.desc').innerText = "Erro na conexão";
+                checkLoadingDone();
+            }
         }
 
         function updateUI(temp, desc, humidity, wind) {
@@ -141,53 +229,83 @@
             `;
         }
 
-        function updateBackground(weatherMain) {
-            // Lógica simples para mudar a cor do fundo
-            if(weatherMain === 'Clouds') document.body.style.background = 'linear-gradient(to top, #bdc3c7, #2c3e50)';
-            if(weatherMain === 'Rain') document.body.style.background = 'linear-gradient(to top, #4b6cb7, #182848)';
-            if(weatherMain === 'Clear') document.body.style.background = 'linear-gradient(to top, #87CEEB, #E0F6FF)';
+        // FUNÇÃO PRINCIPAL: Muda a cena 3D baseado no clima
+        function updateSceneVisuals(weatherMain) {
+            const bodyStyle = document.body.style;
+            const fogColor = scene.fog.color;
+
+            switch(weatherMain) {
+                case 'Clear': // Céu Limpo
+                    bodyStyle.background = 'linear-gradient(to bottom, #1e90ff, #87ceeb)';
+                    fogColor.setHSL(0.6, 0.6, 0.9); // Azul claro nevoeiro
+                    sunLight.intensity = 1.5;
+                    sunMesh.visible = true;
+                    ambientLight.intensity = 0.4;
+                    cloudsGroup.visible = false; // Esconde nuvens
+                    break;
+                case 'Clouds': // Nublado
+                    bodyStyle.background = 'linear-gradient(to bottom, #7f8c8d, #bdc3c7)';
+                    fogColor.setHSL(0.6, 0.2, 0.6); // Cinza nevoeiro
+                    sunLight.intensity = 0.5; // Sol fraco
+                    sunMesh.visible = false; // Esconde o sol visual
+                    ambientLight.intensity = 0.6;
+                    cloudsGroup.visible = true;
+                    // Deixa as nuvens mais escuras
+                    cloudsGroup.traverse(cloud => { if(cloud.material) cloud.material.color.set(0xcccccc); });
+                    break;
+                case 'Rain': // Chuva ou Trovoada
+                case 'Thunderstorm':
+                    bodyStyle.background = 'linear-gradient(to bottom, #2c3e50, #4b6cb7)';
+                    fogColor.setHSL(0.6, 0.4, 0.3); // Cinza escuro azulado
+                    sunLight.intensity = 0.2;
+                    sunMesh.visible = false;
+                    ambientLight.intensity = 0.3;
+                    cloudsGroup.visible = true;
+                    // Nuvens de chuva escuras
+                    cloudsGroup.traverse(cloud => { if(cloud.material) cloud.material.color.set(0x555555); });
+                    break;
+                default: // Outros (neblina, etc.)
+                    bodyStyle.background = '#bdc3c7';
+                    sunLight.intensity = 0.8;
+                    cloudsGroup.visible = true;
+            }
         }
 
-        // --- 4. ANIMAÇÃO ---
-        
-        // Variáveis para interação do mouse
-        let mouseX = 0;
-        let mouseY = 0;
-        let targetRotationX = 0;
-        let targetRotationY = 0;
+        let loadingSteps = 0;
+        function checkLoadingDone() {
+            loadingSteps++;
+            // Espera o modelo (1) e o clima (2) carregarem
+            if(loadingSteps >= 2) {
+                const loader = document.getElementById('loading');
+                loader.style.opacity = '0';
+                setTimeout(() => { loader.style.display = 'none'; }, 1000);
+            }
+        }
 
-        document.addEventListener('mousemove', (event) => {
-            mouseX = (event.clientX - window.innerWidth / 2) * 0.001;
-            mouseY = (event.clientY - window.innerHeight / 2) * 0.001;
-        });
-
+        // Animação
         function animate() {
             requestAnimationFrame(animate);
 
-            // Rotação suave automática do Cristo
-            cristoGroup.rotation.y += 0.002;
+            // Rotação lenta do modelo se ele já carregou
+            if (cristoModel) {
+                cristoModel.rotation.y += 0.001;
+            }
 
-            // Interatividade suave com o mouse (Parallax)
-            targetRotationX = mouseY * 0.5;
-            targetRotationY = mouseX * 0.5;
-            
-            cristoGroup.rotation.x += 0.05 * (targetRotationX - cristoGroup.rotation.x);
-            // Somamos a rotação automática com a do mouse
-            // cristoGroup.rotation.y += 0.05 * (targetRotationY - cristoGroup.rotation.y); 
+            // Movimento lento das nuvens
+            cloudsGroup.children.forEach(cloud => {
+                cloud.position.x -= 0.02; // Move para a esquerda
+                // Se sair da tela, volta para a direita
+                if(cloud.position.x < -100) cloud.position.x = 100;
+            });
 
             renderer.render(scene, camera);
         }
 
-        // Responsividade (Ajuste de tela)
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
-        // Iniciar
-        fetchWeather();
-        animate();
 
     </script>
 </body>
