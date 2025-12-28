@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clima Rio - 3D Experience</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: linear-gradient(to top, #87CEEB, #E0F6FF); }
+        
+        /* Interface do Usuário (UI) sobreposta ao 3D */
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 20px;
+            color: #333;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            max-width: 300px;
+            z-index: 10;
+        }
+
+        h1 { margin: 0 0 10px 0; font-size: 1.5rem; color: #004680; }
+        .temp { font-size: 4rem; font-weight: bold; margin: 0; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
+        .desc { font-size: 1.2rem; text-transform: capitalize; margin-bottom: 20px; font-weight: 500; }
+        .details { font-size: 0.9rem; color: #444; }
+        
+        /* Loading overlay */
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; color: #004680; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <h1>Rio de Janeiro</h1>
+        <div id="weather-data">
+            <p class="temp">28°C</p>
+            <p class="desc">Ensolarado</p>
+            <div class="details">
+                <p>Umidade: 65%</p>
+                <p>Vento: 12 km/h</p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="loading">Carregando Cristo 3D...</div>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO DA CENA 3D ---
+        const scene = new THREE.Scene();
+        
+        // Câmera
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 8); // Posição inicial
+        
+        // Renderizador
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // Luzes
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // --- 2. CONSTRUÇÃO DO CRISTO (Procedural) ---
+        // Como não podemos carregar um arquivo externo .obj facilmente aqui,
+        // vamos "esculpir" um Cristo estilizado usando formas básicas.
+        
+        const cristoGroup = new THREE.Group();
+        const stoneMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xe0e0e0, 
+            roughness: 0.8 
+        });
+
+        // Base (Pedestal)
+        const baseGeo = new THREE.CylinderGeometry(0.8, 1, 1, 8);
+        const base = new THREE.Mesh(baseGeo, stoneMaterial);
+        base.position.y = -2;
+        cristoGroup.add(base);
+
+        // Corpo (Túnica)
+        const bodyGeo = new THREE.CylinderGeometry(0.5, 0.7, 3.5, 8);
+        const body = new THREE.Mesh(bodyGeo, stoneMaterial);
+        body.position.y = 0.25;
+        cristoGroup.add(body);
+
+        // Braços Abertos
+        const armGeo = new THREE.BoxGeometry(3.8, 0.4, 0.5);
+        const arms = new THREE.Mesh(armGeo, stoneMaterial);
+        arms.position.y = 1.2;
+        cristoGroup.add(arms);
+
+        // Cabeça
+        const headGeo = new THREE.SphereGeometry(0.35, 16, 16);
+        const head = new THREE.Mesh(headGeo, stoneMaterial);
+        head.position.y = 2.1;
+        cristoGroup.add(head);
+
+        scene.add(cristoGroup);
+        document.getElementById('loading').style.display = 'none';
+
+        // --- 3. INTEGRAÇÃO COM API DE TEMPO ---
+        // Nota: Para usar dados reais, você precisa de uma chave da OpenWeatherMap.
+        // Abaixo simulei uma chamada para funcionar sem chave API inicialmente.
+        
+        async function fetchWeather() {
+            // Se você tiver uma API KEY, descomente as linhas abaixo e coloque sua chave:
+            /*
+            const apiKey = 'SUA_CHAVE_AQUI';
+            const url = `https://api.openweathermap.org/data/2.5/weather?q=Rio+de+Janeiro&appid=${apiKey}&units=metric&lang=pt_br`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                updateUI(data.main.temp, data.weather[0].description, data.main.humidity, data.wind.speed);
+                updateBackground(data.weather[0].main); // Mudar cor do céu baseado no tempo
+            } catch (error) {
+                console.error("Erro ao buscar clima", error);
+            }
+            */
+
+            // Simulação (Mock)
+            console.log("Usando dados simulados (Adicione sua API Key no código para dados reais)");
+        }
+
+        function updateUI(temp, desc, humidity, wind) {
+            document.querySelector('.temp').innerText = Math.round(temp) + '°C';
+            document.querySelector('.desc').innerText = desc;
+            document.querySelector('.details').innerHTML = `
+                <p>Umidade: ${humidity}%</p>
+                <p>Vento: ${wind} km/h</p>
+            `;
+        }
+
+        function updateBackground(weatherMain) {
+            // Lógica simples para mudar a cor do fundo
+            if(weatherMain === 'Clouds') document.body.style.background = 'linear-gradient(to top, #bdc3c7, #2c3e50)';
+            if(weatherMain === 'Rain') document.body.style.background = 'linear-gradient(to top, #4b6cb7, #182848)';
+            if(weatherMain === 'Clear') document.body.style.background = 'linear-gradient(to top, #87CEEB, #E0F6FF)';
+        }
+
+        // --- 4. ANIMAÇÃO ---
+        
+        // Variáveis para interação do mouse
+        let mouseX = 0;
+        let mouseY = 0;
+        let targetRotationX = 0;
+        let targetRotationY = 0;
+
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX - window.innerWidth / 2) * 0.001;
+            mouseY = (event.clientY - window.innerHeight / 2) * 0.001;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotação suave automática do Cristo
+            cristoGroup.rotation.y += 0.002;
+
+            // Interatividade suave com o mouse (Parallax)
+            targetRotationX = mouseY * 0.5;
+            targetRotationY = mouseX * 0.5;
+            
+            cristoGroup.rotation.x += 0.05 * (targetRotationX - cristoGroup.rotation.x);
+            // Somamos a rotação automática com a do mouse
+            // cristoGroup.rotation.y += 0.05 * (targetRotationY - cristoGroup.rotation.y); 
+
+            renderer.render(scene, camera);
+        }
+
+        // Responsividade (Ajuste de tela)
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Iniciar
+        fetchWeather();
+        animate();
+
+    </script>
+</body>
+</html>
